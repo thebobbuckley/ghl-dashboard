@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GHL Analytics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1a202c;
+      --muted: #718096;
+      --accent: #4f46e5;
+      --accent-light: #ede9fe;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --shadow: 0 1px 3px rgba(0,0,0,.10), 0 1px 2px rgba(0,0,0,.06);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,.12);
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+    /* ── Header ─────────────────────────────── */
+    .header {
+      position:sticky; top:0; z-index:100;
+      background:var(--card); border-bottom:1px solid var(--border);
+      height:60px; padding:0 24px;
+      display:flex; align-items:center; justify-content:space-between;
+      box-shadow:var(--shadow);
+    }
+    .logo {
+      width:32px; height:32px; border-radius:8px;
+      background:var(--accent); color:#fff;
+      font-weight:700; font-size:13px;
+      display:flex; align-items:center; justify-content:center;
+      flex-shrink:0;
+    }
+    .header-left  { display:flex; align-items:center; gap:10px; }
+    .header-left h1 { font-size:17px; font-weight:600; }
+    .header-right { display:flex; align-items:center; gap:10px; }
+
+    /* ── Date pills ──────────────────────────── */
+    .date-tabs {
+      display:flex; gap:2px; padding:3px;
+      background:var(--bg); border:1px solid var(--border); border-radius:8px;
+    }
+    .date-tab {
+      padding:5px 11px; border-radius:6px; border:none;
+      background:transparent; color:var(--muted);
+      font-size:12px; font-weight:500; cursor:pointer; transition:.15s;
+    }
+    .date-tab:hover { background:var(--card); color:var(--text); }
+    .date-tab.active {
+      background:var(--card); color:var(--accent);
+      font-weight:600; box-shadow:var(--shadow);
+    }
+
+    /* ── Buttons ─────────────────────────────── */
+    .btn {
+      display:inline-flex; align-items:center; gap:5px;
+      padding:7px 14px; border-radius:8px; border:none;
+      font-size:13px; font-weight:500; cursor:pointer; transition:.15s;
+    }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover { opacity:.88; }
+    .btn-ghost {
+      background:var(--card); color:var(--text);
+      border:1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+    .btn-icon {
+      width:34px; height:34px; padding:0;
+      display:inline-flex; align-items:center; justify-content:center;
+      border-radius:8px; border:1px solid var(--border);
+      background:var(--card); color:var(--muted);
+      cursor:pointer; transition:.15s; font-size:15px;
+    }
+    .btn-icon:hover { border-color:var(--accent); color:var(--accent); }
+
+    /* ── Main grid ───────────────────────────── */
+    .main { padding:20px 24px; max-width:1440px; margin:0 auto; }
+    .setup-banner {
+      background:linear-gradient(135deg,var(--accent) 0%,#7c3aed 100%);
+      color:#fff; border-radius:12px; padding:18px 22px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; margin-bottom:20px;
+    }
+    .setup-banner h2 { font-size:15px; font-weight:600; }
+    .setup-banner p  { font-size:12px; opacity:.85; margin-top:3px; }
+    .grid {
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:18px;
+    }
+    @media(max-width:820px) { .grid{grid-template-columns:1fr;} .date-tabs{display:none;} }
+
+    /* ── Widget card ─────────────────────────── */
+    .card {
+      background:var(--card); border-radius:12px;
+      border:1px solid var(--border); box-shadow:var(--shadow);
+      overflow:hidden; transition:.2s;
+    }
+    .card:hover { box-shadow:var(--shadow-lg); }
+    .card-head {
+      padding:14px 18px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid var(--border);
+    }
+    .card-title { display:flex; align-items:center; gap:10px; }
+    .card-icon {
+      width:34px; height:34px; border-radius:9px;
+      display:flex; align-items:center; justify-content:center; font-size:17px;
+    }
+    .card-title h3 { font-size:14px; font-weight:600; }
+    .card-title p  { font-size:11px; color:var(--muted); margin-top:1px; }
+    .card-meta { display:flex; align-items:center; gap:10px; }
+    .kpi { text-align:right; }
+    .kpi-num   { font-size:22px; font-weight:700; line-height:1; }
+    .kpi-label { font-size:10px; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
+    .card-body { padding:14px 18px; position:relative; }
+    .chart-wrap { position:relative; height:200px; }
+
+    /* ── Overlays ────────────────────────────── */
+    .overlay {
+      position:absolute; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      background:rgba(255,255,255,.92); border-radius:8px; z-index:10;
+    }
+    .spinner {
+      width:26px; height:26px;
+      border:3px solid var(--border); border-top-color:var(--accent);
+      border-radius:50%; animation:spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .overlay-msg { font-size:12px; color:var(--muted); margin-top:8px; }
+    .retry {
+      margin-top:8px; padding:3px 12px; font-size:11px;
+      border-radius:6px; border:1px solid var(--red);
+      color:var(--red); background:transparent; cursor:pointer;
+    }
+
+    /* ── Settings modal ──────────────────────── */
+    .modal-bg {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,.5); z-index:200;
+      align-items:center; justify-content:center; padding:20px;
+    }
+    .modal-bg.open { display:flex; }
+    .modal {
+      background:var(--card); border-radius:16px;
+      width:100%; max-width:500px;
+      box-shadow:var(--shadow-lg); animation:slideUp .2s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(12px);opacity:0} to{transform:none;opacity:1} }
+    .modal-head {
+      padding:18px 22px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .modal-head h2 { font-size:16px; font-weight:600; }
+    .modal-body { padding:22px; }
+    .modal-foot {
+      padding:14px 22px; border-top:1px solid var(--border);
+      display:flex; justify-content:flex-end; gap:8px;
+    }
+    .field { margin-bottom:16px; }
+    .label { display:block; font-size:12px; font-weight:600; color:var(--text); margin-bottom:5px; }
+    .hint  { font-size:11px; color:var(--muted); margin-top:4px; }
+    .input {
+      width:100%; padding:9px 11px;
+      border:1px solid var(--border); border-radius:8px;
+      font-size:13px; color:var(--text); background:var(--bg);
+      outline:none; transition:.15s;
+    }
+    .input:focus { border-color:var(--accent); background:#fff; }
+
+    /* ── Widget chips ────────────────────────── */
+    .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:4px; }
+    .chip {
+      padding:5px 12px; border-radius:20px;
+      border:1px solid var(--border); background:var(--bg);
+      font-size:12px; cursor:pointer; user-select:none;
+      color:var(--muted); transition:.15s;
+    }
+    .chip.on {
+      background:var(--accent-light); border-color:var(--accent);
+      color:var(--accent); font-weight:600;
+    }
+
+    .hidden { display:none !important; }
+    .full-width { grid-column:1/-1; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════ SETTINGS MODAL ════════════ -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>⚙️ Dashboard Settings</h2>
+      <button class="btn-icon" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="field">
+        <label class="label">GHL Private API Key *</label>
+        <input type="password" class="input" id="cfgApiKey" placeholder="pit_xxxxxxxxxxxxxxxx…" />
+        <p class="hint">Settings → Integrations → Private Integrations → Create key with read access.</p>
+      </div>
+
+      <div class="field">
+        <label class="label">Location ID (Sub-Account) *</label>
+        <input type="text" class="input" id="cfgLocId" placeholder="xXxXxXxXxXxXxXxX" />
+        <p class="hint">Settings → Business Profile → scroll to "Location ID".</p>
+      </div>
+
+      <div class="field">
+        <label class="label">Proxy URL *</label>
+        <input type="text" class="input" id="cfgProxy" placeholder="https://your-app.netlify.app/.netlify/functions/ghl-proxy" />
+        <p class="hint">Your deployed Netlify function URL — see the setup guide below for details.</p>
+      </div>
+
+      <div class="field">
+        <label class="label">Visible Widgets</label>
+        <div class="chips" id="widgetChips">
+          <span class="chip on" data-w="contacts"   onclick="toggleChip(this)">📋 Contacts</span>
+          <span class="chip on" data-w="pipeline"   onclick="toggleChip(this)">💰 Pipeline</span>
+          <span class="chip on" data-w="appts"      onclick="toggleChip(this)">📅 Appointments</span>
+          <span class="chip on" data-w="convos"     onclick="toggleChip(this)">💬 Conversations</span>
+          <span class="chip on" data-w="forms"      onclick="toggleChip(this)">📝 Forms</span>
+          <span class="chip on" data-w="revenue"    onclick="toggleChip(this)">💵 Revenue</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettings()">💾 Save & Reload</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ HEADER ════════════ -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">GHL</div>
+    <h1>Analytics Dashboard</h1>
+  </div>
+  <div class="header-right">
+    <div class="date-tabs">
+      <button class="date-tab"        data-d="7"  onclick="setRange(7,this)">7D</button>
+      <button class="date-tab active" data-d="30" onclick="setRange(30,this)">30D</button>
+      <button class="date-tab"        data-d="90" onclick="setRange(90,this)">90D</button>
+    </div>
+    <button class="btn btn-ghost" onclick="refreshAll()">🔄 Refresh</button>
+    <button class="btn-icon"     onclick="openModal()" title="Settings">⚙️</button>
+  </div>
+</header>
+
+<!-- ════════════ MAIN ════════════ -->
+<main class="main">
+
+  <!-- Setup banner -->
+  <div class="setup-banner" id="setupBanner">
+    <div>
+      <h2>👋 Welcome! Configure your dashboard</h2>
+      <p>Enter your GHL API key, Location ID, and Proxy URL to start loading live analytics.</p>
+    </div>
+    <button class="btn" style="background:#fff;color:var(--accent);" onclick="openModal()">⚙️ Configure Now</button>
+  </div>
+
+  <!-- Dashboard grid -->
+  <div class="grid" id="grid">
+
+    <!-- 1 · Contacts -->
+    <div class="card" id="w-contacts">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-icon" style="background:#ede9fe;">📋</div>
+          <div><h3>Contacts & Leads</h3><p>New contacts per day</p></div>
+        </div>
+        <div class="card-meta">
+          <div class="kpi"><div class="kpi-num" id="kpi-contacts">—</div><div class="kpi-label">Total</div></div>
+          <button class="btn-icon" onclick="load('contacts')" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="c-contacts"></canvas>
+          <div class="overlay" id="o-contacts"><div class="spinner"></div><p class="overlay-msg">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 · Pipeline -->
+    <div class="card" id="w-pipeline">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-icon" style="background:#dcfce7;">💰</div>
+          <div><h3>Pipeline Opportunities</h3><p>Count by stage</p></div>
+        </div>
+        <div class="card-meta">
+          <div class="kpi"><div class="kpi-num" id="kpi-pipeline">—</div><div class="kpi-label">Open</div></div>
+          <button class="btn-icon" onclick="load('pipeline')" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="c-pipeline"></canvas>
+          <div class="overlay" id="o-pipeline"><div class="spinner"></div><p class="overlay-msg">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 · Appointments -->
+    <div class="card" id="w-appts">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-icon" style="background:#fef3c7;">📅</div>
+          <div><h3>Appointments</h3><p>Status breakdown</p></div>
+        </div>
+        <div class="card-meta">
+          <div class="kpi"><div class="kpi-num" id="kpi-appts">—</div><div class="kpi-label">Total</div></div>
+          <button class="btn-icon" onclick="load('appts')" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="c-appts"></canvas>
+          <div class="overlay" id="o-appts"><div class="spinner"></div><p class="overlay-msg">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 · Conversations -->
+    <div class="card" id="w-convos">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-icon" style="background:#dbeafe;">💬</div>
+          <div><h3>Conversations</h3><p>By channel type</p></div>
+        </div>
+        <div class="card-meta">
+          <div class="kpi"><div class="kpi-num" id="kpi-convos">—</div><div class="kpi-label">Total</div></div>
+          <button class="btn-icon" onclick="load('convos')" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="c-convos"></canvas>
+          <div class="overlay" id="o-convos"><div class="spinner"></div><p class="overlay-msg">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 · Form Submissions -->
+    <div class="card" id="w-forms">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-icon" style="background:#fce7f3;">📝</div>
+          <div><h3>Form Submissions</h3><p>Submissions per form</p></div>
+        </div>
+        <div class="card-meta">
+          <div class="kpi"><div class="kpi-num" id="kpi-forms">—</div><div class="kpi-label">Total</div></div>
+          <button class="btn-icon" onclick="load('forms')" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="c-forms"></canvas>
+          <div class="overlay" id="o-forms"><div class="spinner"></div><p class="overlay-msg">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 · Revenue -->
+    <div class="card" id="w-revenue">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-icon" style="background:#d1fae5;">💵</div>
+          <div><h3>Pipeline Revenue</h3><p>Estimated value by stage</p></div>
+        </div>
+        <div class="card-meta">
+          <div class="kpi"><div class="kpi-num" id="kpi-revenue">—</div><div class="kpi-label">Est. Value</div></div>
+          <button class="btn-icon" onclick="load('revenue')" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="c-revenue"></canvas>
+          <div class="overlay" id="o-revenue"><div class="spinner"></div><p class="overlay-msg">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+</main>
+
+<script>
+// ──────────────────────────────────────────────
+//  STATE
+// ──────────────────────────────────────────────
+let cfg     = JSON.parse(localStorage.getItem('ghl_cfg') || '{}');
+let days    = 30;
+let charts  = {};
+let oppCache = null;
+let visible = cfg.visible || ['contacts','pipeline','appts','convos','forms','revenue'];
+
+// ──────────────────────────────────────────────
+//  UTILS
+// ──────────────────────────────────────────────
+const PALETTE = [
+  '#4f46e5','#10b981','#f59e0b','#ec4899',
+  '#14b8a6','#f97316','#8b5cf6','#ef4444',
+  '#06b6d4','#84cc16'
+];
+
+function dates() {
+  const end   = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  return { start, end };
+}
+
+function fmt(d) {
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+function fmtMoney(v) {
+  if (v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return '$' + (v/1e3).toFixed(1) + 'k';
+  return '$' + Math.round(v);
+}
+
+function dayLabels() {
+  const {start} = dates();
+  return Array.from({length:days},(_,i)=>{
+    const d = new Date(start);
+    d.setDate(d.getDate()+i);
+    return fmt(d);
+  });
+}
+
+function groupByDay(items, field) {
+  const {start} = dates();
+  const arr = new Array(days).fill(0);
+  items.forEach(it=>{
+    const d   = new Date(it[field] || it.dateAdded || it.createdAt);
+    const idx = Math.floor((d - start)/(864e5));
+    if (idx>=0 && idx<days) arr[idx]++;
+  });
+  return arr;
+}
+
+// ──────────────────────────────────────────────
+//  API
+// ──────────────────────────────────────────────
+async function ghl(path, params={}) {
+  if (!cfg.proxy) throw new Error('Proxy URL not set');
+  const r = await fetch(cfg.proxy, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ path, params, apiKey: cfg.apiKey })
+  });
+  if (!r.ok) throw new Error('API ' + r.status);
+  return r.json();
+}
+
+// ──────────────────────────────────────────────
+//  OVERLAY HELPERS
+// ──────────────────────────────────────────────
+function showLoad(id) {
+  const el = document.getElementById('o-'+id);
+  if (!el) return;
+  el.classList.remove('hidden');
+  el.innerHTML = '<div class="spinner"></div><p class="overlay-msg">Loading…</p>';
+}
+function showErr(id, msg) {
+  const el = document.getElementById('o-'+id);
+  if (!el) return;
+  el.classList.remove('hidden');
+  el.innerHTML = `<span style="font-size:22px">⚠️</span><p class="overlay-msg">${msg}</p><button class="retry" onclick="load('${id}')">Retry</button>`;
+}
+function hideOverlay(id) {
+  const el = document.getElementById('o-'+id);
+  if (el) el.classList.add('hidden');
+}
+
+// ──────────────────────────────────────────────
+//  CHART HELPERS
+// ──────────────────────────────────────────────
+function kill(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function lineChart(id, labels, data, color='#4f46e5', label='') {
+  kill(id);
+  charts[id] = new Chart(document.getElementById('c-'+id).getContext('2d'), {
+    type:'line',
+    data:{ labels, datasets:[{ label, data,
+      borderColor:color, backgroundColor:color+'18',
+      borderWidth:2, fill:true, tension:.4,
+      pointRadius:0, pointHoverRadius:4 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ grid:{display:false}, ticks:{maxTicksLimit:7, font:{size:11}, color:'#718096'} },
+        y:{ beginAtZero:true, grid:{color:'#f0f2f5'},
+            ticks:{stepSize:1, font:{size:11}, color:'#718096'} }
+      }
+    }
+  });
+}
+
+function barChart(id, labels, data, colors, opts={}) {
+  kill(id);
+  charts[id] = new Chart(document.getElementById('c-'+id).getContext('2d'), {
+    type:'bar',
+    data:{ labels, datasets:[{
+      data, backgroundColor:colors,
+      borderRadius:6, borderSkipped:false,
+      ...opts.dataset
+    }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      indexAxis: opts.horizontal ? 'y' : 'x',
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ grid:{display: opts.horizontal}, beginAtZero:true,
+            ticks:{font:{size:11}, color:'#718096',
+              callback: opts.money ? v=>fmtMoney(v) : undefined } },
+        y:{ grid:{display:!opts.horizontal, color:'#f0f2f5'},
+            beginAtZero:true,
+            ticks:{font:{size:11}, color:'#718096'} }
+      }
+    }
+  });
+}
+
+function donutChart(id, labels, data, colors) {
+  kill(id);
+  charts[id] = new Chart(document.getElementById('c-'+id).getContext('2d'), {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, hoverOffset:5 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'65%',
+      plugins:{
+        legend:{ position:'right',
+          labels:{ font:{size:11}, color:'#718096', boxWidth:12, padding:14 } }
+      }
+    }
+  });
+}
+
+// ──────────────────────────────────────────────
+//  WIDGET LOADERS
+// ──────────────────────────────────────────────
+
+async function loadContacts() {
+  showLoad('contacts');
+  try {
+    const {start,end} = dates();
+    const d = await ghl('/contacts/', {
+      locationId: cfg.locId,
+      startDate:  start.toISOString(),
+      endDate:    end.toISOString(),
+      limit: 100
+    });
+    const items  = d.contacts || [];
+    const counts = groupByDay(items,'dateAdded');
+    document.getElementById('kpi-contacts').textContent = d.total ?? items.length;
+    lineChart('contacts', dayLabels(), counts, '#4f46e5', 'New Contacts');
+    hideOverlay('contacts');
+  } catch(e) { showErr('contacts', e.message); }
+}
+
+async function loadPipeline() {
+  showLoad('pipeline');
+  try {
+    const d = await ghl('/opportunities/search', {
+      location_id: cfg.locId, limit:100
+    });
+    const opps = d.opportunities || [];
+    oppCache = opps;
+
+    const stageCount = {};
+    opps.forEach(o=>{
+      const n = o.pipelineStage?.name || o.stage?.name || 'Unknown';
+      stageCount[n] = (stageCount[n]||0) + 1;
+    });
+    const labels = Object.keys(stageCount);
+    const vals   = Object.values(stageCount);
+    document.getElementById('kpi-pipeline').textContent = opps.length;
+    barChart('pipeline', labels, vals, PALETTE.slice(0,labels.length));
+    hideOverlay('pipeline');
+
+    if (visible.includes('revenue')) renderRevenue(opps);
+  } catch(e) { showErr('pipeline', e.message); }
+}
+
+function renderRevenue(opps) {
+  showLoad('revenue');
+  try {
+    const rev = {}; let total = 0;
+    opps.forEach(o=>{
+      const n = o.pipelineStage?.name || o.stage?.name || 'Unknown';
+      const v = parseFloat(o.monetaryValue || o.value || 0);
+      rev[n] = (rev[n]||0) + v;
+      total  += v;
+    });
+    const labels = Object.keys(rev);
+    const vals   = Object.values(rev);
+    document.getElementById('kpi-revenue').textContent = fmtMoney(total);
+    barChart('revenue', labels, vals,
+      PALETTE.slice(0,labels.length).map(c=>c+'cc'),
+      { money:true }
+    );
+    hideOverlay('revenue');
+  } catch(e) { showErr('revenue', e.message); }
+}
+
+async function loadAppts() {
+  showLoad('appts');
+  try {
+    const {start,end} = dates();
+    const d = await ghl('/calendars/events', {
+      locationId: cfg.locId,
+      startTime:  start.getTime(),
+      endTime:    end.getTime(),
+      includeAll: true
+    });
+    const evts = d.events || [];
+    const map  = {confirmed:0,cancelled:0,showed:0,'no-show':0};
+    evts.forEach(e=>{
+      const s = (e.appointmentStatus||e.status||'confirmed').toLowerCase();
+      map[s] = (map[s]||0)+1;
+    });
+    document.getElementById('kpi-appts').textContent = evts.length;
+    donutChart('appts',
+      ['Confirmed','Cancelled','Showed','No-Show'],
+      [map.confirmed,map.cancelled,map.showed,map['no-show']],
+      ['#4f46e5','#ef4444','#10b981','#f59e0b']
+    );
+    hideOverlay('appts');
+  } catch(e) { showErr('appts', e.message); }
+}
+
+async function loadConvos() {
+  showLoad('convos');
+  try {
+    const d = await ghl('/conversations/search', {
+      locationId: cfg.locId, limit:100
+    });
+    const convs = d.conversations || [];
+    const TYPES = {
+      TYPE_EMAIL:'Email', TYPE_SMS:'SMS',
+      TYPE_FACEBOOK:'Facebook', TYPE_INSTAGRAM:'Instagram',
+      TYPE_WHATSAPP:'WhatsApp', TYPE_GMB:'Google',
+      TYPE_LIVE_CHAT:'Live Chat'
+    };
+    const map = {};
+    convs.forEach(c=>{
+      const t = TYPES[c.type]||c.type||'Other';
+      map[t] = (map[t]||0)+1;
+    });
+    const labels = Object.keys(map);
+    const vals   = Object.values(map);
+    document.getElementById('kpi-convos').textContent = d.total ?? convs.length;
+    barChart('convos', labels, vals, PALETTE.slice(0,labels.length), {horizontal:true});
+    hideOverlay('convos');
+  } catch(e) { showErr('convos', e.message); }
+}
+
+async function loadForms() {
+  showLoad('forms');
+  try {
+    const {start,end} = dates();
+    const d = await ghl('/forms/submissions', {
+      locationId: cfg.locId,
+      startAt:    start.getTime(),
+      endAt:      end.getTime(),
+      limit:100
+    });
+    const subs = d.submissions || [];
+    const map  = {};
+    subs.forEach(s=>{
+      const n = s.meta?.formName || s.formName || 'Unnamed Form';
+      map[n] = (map[n]||0)+1;
+    });
+    const labels = Object.keys(map);
+    const vals   = Object.values(map);
+    document.getElementById('kpi-forms').textContent = d.total ?? subs.length;
+    barChart('forms', labels, vals, '#ec4899');
+    hideOverlay('forms');
+  } catch(e) { showErr('forms', e.message); }
+}
+
+async function loadRevenue() {
+  if (oppCache) { renderRevenue(oppCache); }
+  else          { await loadPipeline(); }  // pipeline load also renders revenue
+}
+
+// ──────────────────────────────────────────────
+//  DISPATCH
+// ──────────────────────────────────────────────
+const loaders = {
+  contacts: loadContacts,
+  pipeline: loadPipeline,
+  appts:    loadAppts,
+  convos:   loadConvos,
+  forms:    loadForms,
+  revenue:  loadRevenue
+};
+
+function load(id) {
+  if (!cfg.apiKey || !cfg.locId || !cfg.proxy) {
+    showErr(id, 'Click ⚙️ to configure');
+    return;
+  }
+  if (loaders[id]) loaders[id]();
+}
+
+function refreshAll() {
+  oppCache = null;
+  visible.forEach(id => load(id));
+}
+
+// ──────────────────────────────────────────────
+//  DATE RANGE
+// ──────────────────────────────────────────────
+function setRange(d, btn) {
+  days = d;
+  oppCache = null;
+  document.querySelectorAll('.date-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  refreshAll();
+}
+
+// ──────────────────────────────────────────────
+//  SETTINGS MODAL
+// ──────────────────────────────────────────────
+function openModal() {
+  document.getElementById('cfgApiKey').value = cfg.apiKey||'';
+  document.getElementById('cfgLocId').value  = cfg.locId||'';
+  document.getElementById('cfgProxy').value  = cfg.proxy||'';
+  document.querySelectorAll('#widgetChips .chip').forEach(c=>{
+    c.classList.toggle('on', visible.includes(c.dataset.w));
+  });
+  document.getElementById('modalBg').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+}
+function toggleChip(chip) { chip.classList.toggle('on'); }
+
+function saveSettings() {
+  const apiKey = document.getElementById('cfgApiKey').value.trim();
+  const locId  = document.getElementById('cfgLocId').value.trim();
+  const proxy  = document.getElementById('cfgProxy').value.trim();
+  if (!apiKey||!locId||!proxy) { alert('All three fields are required.'); return; }
+
+  visible = [...document.querySelectorAll('#widgetChips .chip.on')].map(c=>c.dataset.w);
+  cfg = { apiKey, locId, proxy, visible };
+  localStorage.setItem('ghl_cfg', JSON.stringify(cfg));
+  closeModal();
+  applyVisibility();
+  document.getElementById('setupBanner').classList.add('hidden');
+  refreshAll();
+}
+
+// ──────────────────────────────────────────────
+//  VISIBILITY
+// ──────────────────────────────────────────────
+const ALL_WIDGETS = ['contacts','pipeline','appts','convos','forms','revenue'];
+function applyVisibility() {
+  ALL_WIDGETS.forEach(id=>{
+    const el = document.getElementById('w-'+id);
+    if (el) el.classList.toggle('hidden', !visible.includes(id));
+  });
+}
+
+// ──────────────────────────────────────────────
+//  INIT
+// ──────────────────────────────────────────────
+(function init(){
+  applyVisibility();
+  if (cfg.apiKey && cfg.locId && cfg.proxy) {
+    document.getElementById('setupBanner').classList.add('hidden');
+    refreshAll();
+  } else {
+    ALL_WIDGETS.forEach(id=>showErr(id,'Click ⚙️ Settings to configure'));
+  }
+})();
+</script>
+</body>
+</html>
