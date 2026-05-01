@@ -624,28 +624,29 @@ function renderRevenue(opps) {
 async function loadAppts() {
   showLoad('appts');
   try {
-    const {start,end} = dates();
+    const {start, end} = dates();
     const d = await ghl('/calendars/events', {
       locationId: cfg.locId,
-      startTime:  start.getTime(),
-      endTime:    end.getTime(),
-      includeAll: true
+      startTime:  start.toISOString(),   // ← changed from .getTime()
+      endTime:    end.toISOString(),     // ← changed from .getTime()
     });
-    const evts = d.events || [];
-    const map  = {confirmed:0,cancelled:0,showed:0,'no-show':0};
-    evts.forEach(e=>{
-      const s = (e.appointmentStatus||e.status||'confirmed').toLowerCase();
-      map[s] = (map[s]||0)+1;
+    const evts = d.events || d.data || [];
+    const map  = { confirmed:0, cancelled:0, showed:0, 'no-show':0 };
+    evts.forEach(e => {
+      const s = (e.appointmentStatus || e.status || 'confirmed').toLowerCase();
+      if (s in map) map[s]++;
+      else map['confirmed']++;
     });
     document.getElementById('kpi-appts').textContent = evts.length;
     donutChart('appts',
-      ['Confirmed','Cancelled','Showed','No-Show'],
-      [map.confirmed,map.cancelled,map.showed,map['no-show']],
-      ['#4f46e5','#ef4444','#10b981','#f59e0b']
+      ['Confirmed', 'Cancelled', 'Showed', 'No-Show'],
+      [map.confirmed, map.cancelled, map.showed, map['no-show']],
+      ['#4f46e5', '#ef4444', '#10b981', '#f59e0b']
     );
     hideOverlay('appts');
   } catch(e) { showErr('appts', e.message); }
 }
+
 
 async function loadConvos() {
   showLoad('convos');
@@ -676,23 +677,28 @@ async function loadConvos() {
 async function loadForms() {
   showLoad('forms');
   try {
-    const {start,end} = dates();
+    const {start, end} = dates();
     const d = await ghl('/forms/submissions', {
       locationId: cfg.locId,
-      startAt:    start.getTime(),
-      endAt:      end.getTime(),
-      limit:100
+      startAt:    start.toISOString(),   // ← changed from .getTime()
+      endAt:      end.toISOString(),     // ← changed from .getTime()
+      limit: 100
     });
-    const subs = d.submissions || [];
+    const subs = d.submissions || d.data || [];
     const map  = {};
-    subs.forEach(s=>{
+    subs.forEach(s => {
       const n = s.meta?.formName || s.formName || 'Unnamed Form';
-      map[n] = (map[n]||0)+1;
+      map[n] = (map[n] || 0) + 1;
     });
     const labels = Object.keys(map);
     const vals   = Object.values(map);
     document.getElementById('kpi-forms').textContent = d.total ?? subs.length;
-    barChart('forms', labels, vals, '#ec4899');
+    if (labels.length) {
+      barChart('forms', labels, vals, '#ec4899');
+    } else {
+      showErr('forms', 'No submissions in this date range');
+      return;
+    }
     hideOverlay('forms');
   } catch(e) { showErr('forms', e.message); }
 }
