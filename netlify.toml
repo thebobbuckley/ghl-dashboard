@@ -1,6 +1,6 @@
 [build]
   functions = "netlify/functions"
-  publish   = "."
+  publish   = "public"
 
 # Allow GHL (and any domain) to embed this app in an iframe
 [[headers]]
